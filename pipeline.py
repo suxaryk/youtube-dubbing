@@ -216,8 +216,6 @@ def assemble_audio(
 
     for chunk, audio_file in zip(chunks, audio_files):
         part = AudioSegment.from_wav(str(audio_file))
-        target_duration = int((chunk["end"] - chunk["start"]) * 1000)
-        part = stretch_audio(part, target_duration)
         position_ms = int(chunk["start"] * 1000)
         final_audio = final_audio.overlay(part, position=position_ms)
 
