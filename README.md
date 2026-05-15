@@ -6,27 +6,11 @@ Automatic dubbing of YouTube videos from English to Ukrainian.
 
 ## Pipeline
 
-```mermaid
-flowchart TD
-    A([🔗 YouTube URL]) --> B[⬇️ Download\nyt-dlp]
-    B --> C[🎞️ Video .mp4]
-    B --> D[🔊 Extract audio\nffmpeg]
-    D --> E[📝 Transcription\nWhisper large-v3]
-    E --> F[💬 EN chunks\nwith timestamps]
-    F --> G[🌐 Translation\nGoogle Translate]
-    G --> H[💬 UK chunks]
-    H --> I[🎙️ Speech synthesis\nedge-tts]
-    I --> J[🔧 Assemble audio\npydub + timestamps]
-    J --> K[🎬 Merge video + audio\nffmpeg]
-    C --> K
-    K --> L([✅ Output .mp4\n+ .srt subtitles])
-
-    style A fill:#ff4444,color:#fff
-    style L fill:#22c55e,color:#fff
-    style E fill:#6366f1,color:#fff
-    style G fill:#6366f1,color:#fff
-    style I fill:#6366f1,color:#fff
 ```
+YouTube URL → yt-dlp → Whisper (transcription) → Google Translate → edge-tts (synthesis) → MP4
+```
+
+→ [View full pipeline diagram](docs/pipeline.md)
 
 ## Features
 

@@ -6,27 +6,11 @@
 
 ## Пайплайн
 
-```mermaid
-flowchart TD
-    A([🔗 YouTube URL]) --> B[⬇️ Завантаження\nyt-dlp]
-    B --> C[🎞️ Відео .mp4]
-    B --> D[🔊 Витяжка аудіо\nffmpeg]
-    D --> E[📝 Транскрипція\nWhisper large-v3]
-    E --> F[💬 EN фрагменти\nз таймкодами]
-    F --> G[🌐 Переклад\nGoogle Translate]
-    G --> H[💬 UK фрагменти]
-    H --> I[🎙️ Синтез мовлення\nedge-tts]
-    I --> J[🔧 Збірка аудіо\npydub + таймкоди]
-    J --> K[🎬 Злиття відео + аудіо\nffmpeg]
-    C --> K
-    K --> L([✅ Готове .mp4\n+ субтитри .srt])
-
-    style A fill:#ff4444,color:#fff
-    style L fill:#22c55e,color:#fff
-    style E fill:#6366f1,color:#fff
-    style G fill:#6366f1,color:#fff
-    style I fill:#6366f1,color:#fff
 ```
+YouTube URL → yt-dlp → Whisper (транскрипція) → Google Translate → edge-tts (синтез) → MP4
+```
+
+→ [Повна діаграма пайплайну](docs/pipeline.md)
 
 ## Можливості
 
