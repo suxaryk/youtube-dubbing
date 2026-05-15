@@ -1,57 +1,65 @@
 # YouTube UA Dubbing
 
-Автоматичне дублювання YouTube відео з англійської на українську мову.
+> 🇺🇦 [Українська версія](README.ua.md)
 
-## Пайплайн
+Automatic dubbing of YouTube videos from English to Ukrainian.
+
+## Pipeline
 
 ```
-YouTube URL → yt-dlp → Whisper (транскрипція) → Google Translate → edge-tts (синтез) → MP4
+YouTube URL → yt-dlp → Whisper (transcription) → Google Translate → edge-tts (synthesis) → MP4
 ```
 
-## Можливості
+## Features
 
-- Транскрипція аудіо через **Whisper large-v3** (OpenAI)
-- Переклад через **Google Translate** (EN → UK)
-- Синтез українського мовлення через **edge-tts** (Microsoft)
-  - `uk-UA-PolinaNeural` — жіночий голос
-  - `uk-UA-OstapNeural` — чоловічий голос
-- Збірка фінального відео через **ffmpeg** з оригінальним відеорядом
-- Генерація субтитрів у форматі `.srt`
-- Веб-інтерфейс через **Gradio**
+- Audio transcription via **[Whisper large-v3](https://github.com/openai/whisper)** (OpenAI)
+- Translation via **[Google Translate](https://pypi.org/project/deep-translator/)** (EN → UK)
+- Ukrainian speech synthesis via **[edge-tts](https://github.com/rany2/edge-tts)** (Microsoft)
+  - `uk-UA-PolinaNeural` — female voice
+  - `uk-UA-OstapNeural` — male voice
+- Final video assembly via **[ffmpeg](https://ffmpeg.org/)** with original video track
+- Subtitle generation in `.srt` format
+- Web interface via **[Gradio](https://www.gradio.app/)**
 
-## Вимоги
+## Requirements
 
 - Python 3.9–3.12
-- GPU (рекомендовано T4 або вище для Whisper)
-- Інтернет-з'єднання (для Google Translate та edge-tts)
+- GPU (T4 or higher recommended for Whisper)
+- Internet connection (for Google Translate and edge-tts)
 
-## Запуск у Google Colab
+## Running in Google Colab
 
-1. Відкрий `YouTube_UA_Dubbing.ipynb` у Google Colab
+1. Open `YouTube_UA_Dubbing.ipynb` in [Google Colab](https://colab.research.google.com/)
 2. `Runtime → Change runtime type → T4 GPU`
-3. Запускай клітинки по порядку (кроки 1–5)
-4. Введи YouTube посилання у Gradio інтерфейсі та натисни **Запустити дублювання**
+3. Run cells in order (steps 1–5)
+4. Enter a YouTube URL in the Gradio interface and click **Start dubbing**
 
-## Структура проєкту
+## Project Structure
 
 ```
-YouTube_UA_Dubbing.ipynb   # Основний ноутбук
+YouTube_UA_Dubbing.ipynb   # Main notebook
+pipeline.py                # Extracted pipeline module
+tests/
+└── test_pipeline.py       # 45 unit tests
+README.md                  # English docs
+README.ua.md               # Ukrainian docs
+.gitignore
 ```
 
-## Залежності
+## Dependencies
 
-| Пакет | Призначення |
+| Package | Purpose |
 |---|---|
-| `faster-whisper` | Транскрипція аудіо |
-| `deep-translator` | Переклад EN → UK |
-| `edge-tts` | Синтез українського мовлення |
-| `yt-dlp` | Завантаження відео з YouTube |
-| `pydub` | Обробка аудіо, таймінг фрагментів |
-| `gradio` | Веб-інтерфейс |
-| `ffmpeg` | Збірка фінального відео |
+| [`faster-whisper`](https://github.com/SYSTRAN/faster-whisper) | Audio transcription |
+| [`deep-translator`](https://github.com/nidhaloff/deep-translator) | EN → UK translation |
+| [`edge-tts`](https://github.com/rany2/edge-tts) | Ukrainian speech synthesis |
+| [`yt-dlp`](https://github.com/yt-dlp/yt-dlp) | YouTube video download |
+| [`pydub`](https://github.com/jiaaro/pydub) | Audio processing and timing |
+| [`gradio`](https://www.gradio.app/) | Web interface |
+| [`ffmpeg`](https://ffmpeg.org/) | Final video assembly |
 
-## Примітки
+## Notes
 
-- **edge-tts** вимагає активного інтернет-з'єднання (хмарний сервіс Microsoft)
-- Lip-sync не реалізовано — для цього потрібен окремий крок з Wav2Lip
-- Безкоштовний Colab-сеанс: до 12 годин
+- **edge-tts** requires an active internet connection (Microsoft cloud service)
+- Lip-sync is not implemented — a separate [Wav2Lip](https://github.com/Rudrabha/Wav2Lip) step is needed for that
+- Free Colab session: up to 12 hours
