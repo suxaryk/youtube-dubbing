@@ -1,7 +1,11 @@
 import asyncio
+import logging
 import shutil
 import subprocess
+import threading
 import time
+import traceback
+import uuid
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -10,19 +14,24 @@ from faster_whisper import WhisperModel
 from pydub import AudioSegment
 import edge_tts
 
+log = logging.getLogger(__name__)
+
 VOICES = {
     "Polina (жіночий)": "uk-UA-PolinaNeural",
     "Ostap (чоловічий)": "uk-UA-OstapNeural",
 }
 DEFAULT_VOICE = "uk-UA-PolinaNeural"
 
+# Thread-safe Whisper singleton
 _whisper_model: WhisperModel | None = None
+_whisper_lock = threading.Lock()
 
 
 def get_whisper_model(device: str = "cpu", compute_type: str = "int8") -> WhisperModel:
     global _whisper_model
-    if _whisper_model is None:
-        _whisper_model = WhisperModel("large-v3", device=device, compute_type=compute_type)
+    with _whisper_lock:
+        if _whisper_model is None:
+            _whisper_model = WhisperModel("large-v3", device=device, compute_type=compute_type)
     return _whisper_model
 
 
@@ -53,10 +62,13 @@ def download_video(url: str, out_dir: Path) -> tuple[Path, Path]:
                 url.strip(),
             ],
             check=True,
+            capture_output=True,
             timeout=600,
         )
     except subprocess.CalledProcessError as e:
-        raise RuntimeError(f"yt-dlp помилка (код {e.returncode})") from e
+        raise RuntimeError(
+            f"yt-dlp помилка (код {e.returncode}): {e.stderr.decode(errors='replace')}"
+        ) from e
 
     if not video_path.exists():
         raise FileNotFoundError(f"yt-dlp не створив очікуваний файл: {video_path}")
@@ -106,14 +118,14 @@ def translate_chunks(chunks: list[dict]) -> list[dict]:
                 break
             except Exception as exc:
                 if attempt == 2:
-                    print(f"⚠️ Помилка перекладу фрагменту {i}: {exc}")
+                    log.warning("Помилка перекладу фрагменту %d: %s", i, exc)
                     chunk["ua_text"] = chunk["text"]
                     failed += 1
                 else:
                     time.sleep(2 ** attempt)
 
     if failed > len(chunks) * 0.1:
-        print(f"⚠️ УВАГА: {failed}/{len(chunks)} фрагментів не перекладено!")
+        log.warning("УВАГА: %d/%d фрагментів не перекладено!", failed, len(chunks))
     return chunks
 
 
@@ -129,6 +141,20 @@ async def _synthesize_chunk(text: str, out_file: Path, voice: str) -> None:
         mp3_file.unlink(missing_ok=True)
 
 
+async def _synthesize_all(chunks: list[dict], chunks_dir: Path, voice: str) -> list[Exception | None]:
+    """Runs all chunk synthesis concurrently; returns list of errors (None = success)."""
+    tasks = [
+        _synthesize_chunk(
+            chunk.get("ua_text") or chunk.get("text", ""),
+            chunks_dir / f"{i:04d}.wav",
+            voice,
+        )
+        for i, chunk in enumerate(chunks)
+    ]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    return results
+
+
 def synthesize_speech(
     chunks: list[dict], out_dir: Path, voice: str = DEFAULT_VOICE
 ) -> list[Path]:
@@ -138,21 +164,21 @@ def synthesize_speech(
 
     chunks_dir = out_dir / "chunks"
     chunks_dir.mkdir(exist_ok=True)
-    audio_files: list[Path] = []
 
-    for i, chunk in enumerate(chunks):
+    # Run all chunks in a single event loop — compatible with Jupyter/Gradio
+    results = asyncio.run(_synthesize_all(chunks, chunks_dir, voice))
+
+    audio_files: list[Path] = []
+    for i, (chunk, result) in enumerate(zip(chunks, results)):
         out_file = chunks_dir / f"{i:04d}.wav"
-        text = chunk.get("ua_text") or chunk.get("text", "")
-        try:
-            asyncio.run(_synthesize_chunk(text, out_file, voice))
-        except Exception as exc:
-            print(f"⚠️ Помилка синтезу фрагменту {i}: {exc}")
+        if isinstance(result, Exception):
+            log.warning("Помилка синтезу фрагменту %d: %s", i, result)
             duration_ms = max(0, int((chunk["end"] - chunk["start"]) * 1000))
             AudioSegment.silent(duration=duration_ms).export(out_file, format="wav")
         audio_files.append(out_file)
 
         if (i + 1) % 10 == 0:
-            print(f"   {i + 1}/{len(chunks)} фрагментів...")
+            log.info("%d/%d фрагментів синтезовано...", i + 1, len(chunks))
 
     return audio_files
 
@@ -268,15 +294,14 @@ def run_pipeline(
 
     voice = VOICES.get(voice_choice, DEFAULT_VOICE)
 
-    job_dir = work_dir / "current_job"
-    if job_dir.exists():
-        shutil.rmtree(job_dir)
+    # Unique job dir per run — safe for parallel requests
+    job_dir = work_dir / f"job_{uuid.uuid4().hex[:8]}"
     job_dir.mkdir(parents=True)
 
     def _progress(value: float, desc: str = "") -> None:
         if progress_cb:
             progress_cb(value, desc=desc)
-        print(f"[{value:.0%}] {desc}")
+        log.info("[%.0f%%] %s", value * 100, desc)
 
     try:
         _progress(0.10, "⬇️ Завантажую відео...")
@@ -313,7 +338,6 @@ def run_pipeline(
         return final_video, srt_path, txt_path, report
 
     except Exception as exc:
-        import traceback
         msg = f"❌ {exc}\n\n{traceback.format_exc()}"
-        print(msg)
+        log.error(msg)
         return None, None, None, msg

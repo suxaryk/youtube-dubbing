@@ -266,17 +266,12 @@ class TestSynthesizeSpeech:
         chunks = [_make_chunk(), _make_chunk(1.0, 2.0, "World", "Світ")]
         chunks_dir = tmp_path / "chunks"
         chunks_dir.mkdir()
+        for i in range(len(chunks)):
+            _silent_wav(chunks_dir, f"{i:04d}.wav")
 
-        def fake_run(coro):
-            # extract out_file from the coroutine args and create a silent wav
-            coro.close()
-
-        with patch("pipeline.asyncio.run", side_effect=fake_run):
-            # pre-create the wav files since asyncio.run is mocked
-            for i in range(len(chunks)):
-                _silent_wav(chunks_dir, f"{i:04d}.wav")
-            with patch("pipeline.asyncio.run"):
-                result = p.synthesize_speech(chunks, tmp_path)
+        # asyncio.run(_synthesize_all(...)) returns [None, None] — no errors
+        with patch("pipeline.asyncio.run", return_value=[None, None]):
+            result = p.synthesize_speech(chunks, tmp_path)
         assert len(result) == len(chunks)
 
     def test_empty_chunks_returns_empty(self, tmp_path):
@@ -285,7 +280,8 @@ class TestSynthesizeSpeech:
 
     def test_silence_inserted_on_error(self, tmp_path):
         chunks = [_make_chunk(0.0, 1.0)]
-        with patch("pipeline.asyncio.run", side_effect=Exception("TTS error")):
+        # asyncio.run returns list with one Exception — chunk synthesis failed
+        with patch("pipeline.asyncio.run", return_value=[Exception("TTS error")]):
             result = p.synthesize_speech(chunks, tmp_path)
         assert len(result) == 1
         assert result[0].exists()
