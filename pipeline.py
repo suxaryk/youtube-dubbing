@@ -132,11 +132,20 @@ def translate_chunks(chunks: list[dict]) -> list[dict]:
 async def _synthesize_chunk(text: str, out_file: Path, voice: str) -> None:
     """Synthesises one chunk via edge-tts and saves as WAV."""
     mp3_file = out_file.with_suffix(".mp3")
+    target_sample_rate = 22050
     try:
         communicate = edge_tts.Communicate(text, voice)
         await communicate.save(str(mp3_file))
-        audio = AudioSegment.from_mp3(str(mp3_file))
-        audio.export(str(out_file), format="wav")
+        subprocess.run(
+            [
+                "ffmpeg", "-y", "-i", str(mp3_file),
+                "-ar", str(target_sample_rate), "-ac", "1",
+                str(out_file)
+            ],
+            check=True,
+            capture_output=True,
+            timeout=60,
+        )
     finally:
         mp3_file.unlink(missing_ok=True)
 
@@ -216,8 +225,6 @@ def assemble_audio(
 
     for chunk, audio_file in zip(chunks, audio_files):
         part = AudioSegment.from_wav(str(audio_file))
-        target_duration = int((chunk["end"] - chunk["start"]) * 1000)
-        part = stretch_audio(part, target_duration)
         position_ms = int(chunk["start"] * 1000)
         final_audio = final_audio.overlay(part, position=position_ms)
 
